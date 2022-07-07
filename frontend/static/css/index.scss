@@ -1,0 +1,22 @@
+$height: 100%;
+$width: 100%;
+
+html, body {
+    height: 100%;
+    /* color: white; */
+}
+
+#main {
+    position: fixed;
+    width: $width;
+    height: $height;
+    left: 0;
+    top: 0;
+}
+
+#app {
+    width: $width;
+    height: $height;
+    display: flex;
+}
+
