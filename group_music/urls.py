@@ -16,8 +16,9 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 
+# URL patterns to allow developers to access backend frontend or admin page.
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('home/', include('api_controller.urls')),
+    path('api/', include('api_controller.urls')),
     path('', include('frontend.urls'))
 ]
