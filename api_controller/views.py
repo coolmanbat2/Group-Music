@@ -1,3 +1,4 @@
+from django.http import JsonResponse
 from django.shortcuts import render
 from rest_framework import generics, status
 from rest_framework.views import APIView
@@ -105,3 +106,13 @@ class CreateRoomView(APIView):
             self.request.session["room_code"] = room.code
 
         return Response(RoomSerializer(room).data, status=status.HTTP_201_CREATED)
+
+class UserInRoom(APIView): 
+    """
+    Gets the information of a room
+    """
+    def get(self, request, format=None):
+        data = {
+            'code': self.request.session.get('room_code')
+        }
+        return JsonResponse(data, status=status.HTTP_200_OK)

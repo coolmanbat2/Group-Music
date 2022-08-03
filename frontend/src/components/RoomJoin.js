@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { TextField, Button, Grid, Typography } from "@mui/material";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import GetCookie from "./GetCookie";
 
 function RoomJoinPage(props) {
   const [roomCode, setRoomCode] = useState("");
   const [error, setError] = useState("");
+  const navigate = useNavigate();
 
   const handleTextFieldChange = (e) => {
     setRoomCode(e.target.value);
@@ -23,7 +24,7 @@ function RoomJoinPage(props) {
     fetch("/api/join-room", requestOptions)
       .then((response) => {
         if (response.ok) {
-          props.history.push(`/room/${roomcode}`);
+          navigate(`/room/${roomCode}`);
         } else {
           setError("Room not found.");
         }
