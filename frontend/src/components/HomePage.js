@@ -55,7 +55,7 @@ function HomePage(props) {
         />
         <Route path="/join" element={<RoomJoinPage />} />
         <Route path="/create" element={<CreateRoomPage />} />
-        <Route path="/room/:roomCode" element={<Room />} />
+        <Route path="/room/:roomCode" element={} />
       </Routes>
     </BrowserRouter>
   );
