@@ -30,6 +30,9 @@ function renderHomePage() {
 
 function HomePage(props) {
   const [roomCode, setRoomCode] = useState(null);
+  function clearRoomCode() {
+    setRoomCode(null);
+  }
   useEffect(() => {
     async function autoEnter() {
       fetch("/api/user-in-room")
@@ -46,16 +49,15 @@ function HomePage(props) {
         <Route
           path="/"
           element={
-             roomCode ? (
-              <Navigate to={`/room/${roomCode}`} />
-            ) : (
-              renderHomePage()
-            )
+            roomCode ? <Navigate to={`/room/${roomCode}`} /> : renderHomePage()
           }
         />
         <Route path="/join" element={<RoomJoinPage />} />
         <Route path="/create" element={<CreateRoomPage />} />
-        <Route path="/room/:roomCode" element={} />
+        <Route
+          path="/room/:roomCode"
+          element={<Room clearRoom={clearRoomCode} />}
+        />
       </Routes>
     </BrowserRouter>
   );
