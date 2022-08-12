@@ -2,12 +2,14 @@ import React, { useEffect, useState } from "react";
 import { Grid, Button, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useParams } from "react-router-dom";
+import CreateRoomPage from "./createRoomPage";
 
 function Room(props) {
   const navigate = useNavigate();
   const [isHost, setIsHost] = useState(false);
   const [guestCanPause, setGuestCanPause] = useState(false);
   const [voteToSkip, setVoteToSkip] = useState(2);
+  const [showSettings, setShowSettings] = useState(false);
   const { roomCode } = useParams();
 
   const getRoomDetails = () => {
@@ -26,6 +28,44 @@ function Room(props) {
       });
   };
 
+  function showSettingsPage() {
+    return (
+      <Grid container spacing={1}>
+        <Grid item xs={12} align="center">
+          <CreateRoomPage
+            update={true}
+            voteToSkip={voteToSkip}
+            guestCanPause={guestCanPause}
+            roomCode={roomCode}
+          />
+        </Grid>
+        <Grid item xs={12} align="center">
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={() => setShowSettings(false)}
+          >
+            Close
+          </Button>
+        </Grid>
+      </Grid>
+    );
+  }
+
+  function RenderSettingsButton() {
+    return (
+      <Grid item xs={12} align="center">
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => setShowSettings(true)}
+        >
+          Settings
+        </Button>
+      </Grid>
+    );
+  }
+
   function leaveButtonPressed() {
     const requestOptions = {
       method: "POST",
@@ -41,6 +81,9 @@ function Room(props) {
   useEffect(() => {
     getRoomDetails();
   });
+  if (showSettings) {
+    return showSettingsPage();
+  }
   return (
     <React.Suspense fallback="spinner-border">
       <Grid container spacing={1} align="center">
@@ -60,6 +103,7 @@ function Room(props) {
             Vote To Skip: {voteToSkip.toString()}
           </Typography>
         </Grid>
+        {isHost ? RenderSettingsButton() : null}
         <Grid item xs={12}>
           <Button
             variant="contained"

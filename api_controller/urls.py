@@ -1,5 +1,5 @@
 from django.urls import path, include
-from .views import GetRoom, RoomView, CreateRoomView, JoinRoom, UserInRoom, LeaveRoom
+from .views import GetRoom, RoomView, CreateRoomView, JoinRoom, UserInRoom, LeaveRoom, UpdateRoom
 
 # URL patterns to access the api.
 urlpatterns = [
@@ -8,5 +8,6 @@ urlpatterns = [
     path('get-room', GetRoom.as_view()),
     path('join-room', JoinRoom.as_view()),
     path('user-in-room', UserInRoom.as_view()),
-    path('leave-room', LeaveRoom.as_view())
+    path('leave-room', LeaveRoom.as_view()),
+    path('update-room', UpdateRoom.as_view())
 ]
