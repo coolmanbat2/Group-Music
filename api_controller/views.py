@@ -6,9 +6,8 @@ from rest_framework.response import Response
 
 from .serializers import RoomSerializer, CreateRoomSerializer, UpdateRoomSerializer
 from .models import Room
-
-# Create your views here.
-
+from .credentials import CLIENT_ID, CLIENT_SECRET, REDIRECT_URI
+from requests import Request, post
 
 class RoomView(generics.ListAPIView):
     queryset = Room.objects.all()
@@ -170,3 +169,36 @@ class UpdateRoom(APIView):
             return Response(RoomSerializer(room).data, status=status.HTTP_200_OK)
 
         return Response({'Bad Request': 'Invalid Data'}, status=status.HTTP_400_BAD_REQUEST)
+
+    
+# Spotify Authentication
+class AuthURL(APIView):
+    def get(self, request, format=None):
+        scopes = "user-read-playback-state user-modify-playback-state use-read-currently-playing"
+        url = Request('GET', 'https://accounts.spotify.com/authorize', param={
+            'scope': scopes,
+            'response_type': 'code',
+            'redirect_uri': REDIRECT_URI,
+            'client_id': CLIENT_ID,
+        }).prepare().url
+
+        return Response({'url': url}, status=status.HTTP_200_OK)
+
+def spotify_callback(request, format=None):
+    code = request.GET.get('code')
+    error = request.GET.get('error')
+
+    response = post('https://accounts.spotify.com/api/token', data={
+        'grant_type': 'authorization_code',
+        'code': code,
+        'redirect_uri': REDIRECT_URI,
+        'client_id': CLIENT_ID,
+        'client_secret': CLIENT_SECRET,
+    }).json()
+
+    # Get access token and refresh token
+    access_token = response.get('access_token')
+    token_type = response.get('token_type')
+    refresh_token = response.get('refresh_token')
+    expires_in = response.get('expires_in')
+    error = response.get('error')
