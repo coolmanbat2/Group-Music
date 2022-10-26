@@ -1,5 +1,5 @@
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -7,7 +7,12 @@ from rest_framework.response import Response
 from .serializers import RoomSerializer, CreateRoomSerializer, UpdateRoomSerializer
 from .models import Room
 from .credentials import CLIENT_ID, CLIENT_SECRET, REDIRECT_URI
+from .util import is_auth, update_or_create_user_tokens
 from requests import Request, post
+
+import string
+import random
+
 
 class RoomView(generics.ListAPIView):
     queryset = Room.objects.all()
@@ -170,12 +175,25 @@ class UpdateRoom(APIView):
 
         return Response({'Bad Request': 'Invalid Data'}, status=status.HTTP_400_BAD_REQUEST)
 
-    
-# Spotify Authentication
+
+# Returns a randomly generated string that will be used when making
+# requests to Spotify. This is to prevent CSRF Attacks.
+def generate_random_state(str_size):
+    state = ""
+    for i in range(1, str_size):
+        state += random.choice(string.ascii_letters)
+    return state
+
+# Spotify Authentication (Refer to diagram in Spotify for developers Docs)
+
+
 class AuthURL(APIView):
+    # Step 1 of Auth code Flow
     def get(self, request, format=None):
-        scopes = "user-read-playback-state user-modify-playback-state use-read-currently-playing"
-        url = Request('GET', 'https://accounts.spotify.com/authorize', param={
+        state = generate_random_state(16)
+        scopes = "user-read-playback-state user-modify-playback-state user-read-currently-playing"
+        url = Request('GET', 'https://accounts.spotify.com/authorize', params={
+            'state': state,
             'scope': scopes,
             'response_type': 'code',
             'redirect_uri': REDIRECT_URI,
@@ -183,6 +201,9 @@ class AuthURL(APIView):
         }).prepare().url
 
         return Response({'url': url}, status=status.HTTP_200_OK)
+
+# Step two of auth code flow.
+
 
 def spotify_callback(request, format=None):
     code = request.GET.get('code')
@@ -194,6 +215,9 @@ def spotify_callback(request, format=None):
         'redirect_uri': REDIRECT_URI,
         'client_id': CLIENT_ID,
         'client_secret': CLIENT_SECRET,
+    }, headers={
+        'Authorization': 'Basic ' + CLIENT_ID + ':' + CLIENT_SECRET, # Any problem that occurs during auth, LOOK AT HEADERS!
+        'Content-Type': 'application/x-www-form-urlencoded'
     }).json()
 
     # Get access token and refresh token
@@ -202,3 +226,20 @@ def spotify_callback(request, format=None):
     refresh_token = response.get('refresh_token')
     expires_in = response.get('expires_in')
     error = response.get('error')
+
+    print(refresh_token)
+
+    if not request.session.exists(request.session.session_key):
+        request.session.create()
+
+    update_or_create_user_tokens(
+        request.session.session_key, access_token, token_type, expires_in, refresh_token)
+
+    # Redirects to homepage after steps 1 and 2 are completed.
+    return redirect('frontend:home')
+
+
+class isAuthenicated(APIView):
+    def get(self, request, format=None):
+        is_authenticated = is_auth(self.request.session.session_key)
+        return Response({'status': is_authenticated}, status=status.HTTP_200_OK)

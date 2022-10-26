@@ -10,6 +10,7 @@ function Room(props) {
   const [guestCanPause, setGuestCanPause] = useState(false);
   const [voteToSkip, setVoteToSkip] = useState(2);
   const [showSettings, setShowSettings] = useState(false);
+  const [spotifyAuthenticated, isSpotifyAuthenicated] = useState(false);
   const { roomCode } = useParams();
 
   const getRoomDetails = () => {
@@ -26,7 +27,26 @@ function Room(props) {
         setGuestCanPause(data.guest_can_pause);
         setIsHost(data.is_host);
       });
+    if (isHost) {
+      authenticateSpotify();
+    }
   };
+
+  // Gets the spotify account.
+  function authenticateSpotify() {
+    fetch("/api/is-authenicated")
+      .then((response) => response.json())
+      .then((data) => {
+        isSpotifyAuthenicated(data.status);
+        if (!data.status) {
+          fetch("/api/get-auth-url")
+            .then((response) => response.json())
+            .then((data) => {
+              window.location.replace(data.url); // may or may not work in this case.
+            });
+        }
+      });
+  }
 
   function showSettingsPage() {
     return (
