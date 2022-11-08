@@ -5,9 +5,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 
 from .serializers import RoomSerializer, CreateRoomSerializer, UpdateRoomSerializer
-from .models import Room
+from .models import Room, SpotifyToken, Votes
 from .credentials import CLIENT_ID, CLIENT_SECRET, REDIRECT_URI
-from .util import is_auth, update_or_create_user_tokens
+from .util import *
 from requests import Request, post
 
 import string
@@ -188,21 +188,17 @@ def generate_random_state(str_size):
 
 
 class AuthURL(APIView):
-    # Step 1 of Auth code Flow
-    def get(self, request, format=None):
-        state = generate_random_state(16)
-        scopes = "user-read-playback-state user-modify-playback-state user-read-currently-playing"
+    def get(self, request, fornat=None):
+        scopes = 'user-read-playback-state user-modify-playback-state user-read-currently-playing'
+
         url = Request('GET', 'https://accounts.spotify.com/authorize', params={
-            'state': state,
             'scope': scopes,
             'response_type': 'code',
             'redirect_uri': REDIRECT_URI,
-            'client_id': CLIENT_ID,
+            'client_id': CLIENT_ID
         }).prepare().url
 
         return Response({'url': url}, status=status.HTTP_200_OK)
-
-# Step two of auth code flow.
 
 
 def spotify_callback(request, format=None):
@@ -214,20 +210,14 @@ def spotify_callback(request, format=None):
         'code': code,
         'redirect_uri': REDIRECT_URI,
         'client_id': CLIENT_ID,
-        'client_secret': CLIENT_SECRET,
-    }, headers={
-        'Authorization': 'Basic ' + CLIENT_ID + ':' + CLIENT_SECRET, # Any problem that occurs during auth, LOOK AT HEADERS!
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'client_secret': CLIENT_SECRET
     }).json()
 
-    # Get access token and refresh token
     access_token = response.get('access_token')
     token_type = response.get('token_type')
     refresh_token = response.get('refresh_token')
     expires_in = response.get('expires_in')
     error = response.get('error')
-
-    print(refresh_token)
 
     if not request.session.exists(request.session.session_key):
         request.session.create()
@@ -235,11 +225,110 @@ def spotify_callback(request, format=None):
     update_or_create_user_tokens(
         request.session.session_key, access_token, token_type, expires_in, refresh_token)
 
-    # Redirects to homepage after steps 1 and 2 are completed.
     return redirect('frontend:home')
 
 
-class isAuthenicated(APIView):
+class isAuthenticated(APIView):
     def get(self, request, format=None):
-        is_authenticated = is_auth(self.request.session.session_key)
+        is_authenticated = is_auth(
+            self.request.session.session_key)
         return Response({'status': is_authenticated}, status=status.HTTP_200_OK)
+
+
+class CurrentSong(APIView):
+    def get(self, request, format=None):
+        room_code = self.request.session.get('room_code')
+        room = Room.objects.filter(code=room_code)
+        if room.exists():
+            room = room[0]
+        else:
+            return Response({}, status=status.HTTP_404_NOT_FOUND)
+        host = room.host
+        endpoint = "player/currently-playing"
+        response = execute_spotify_api_request(host, endpoint)
+
+        if 'error' in response or 'item' not in response:
+            return Response({}, status=status.HTTP_204_NO_CONTENT)
+
+        item = response.get('item')
+        duration = item.get('duration_ms')
+        progress = response.get('progress_ms')
+        album_cover = item.get('album').get('images')[0].get('url')
+        is_playing = response.get('is_playing')
+        song_id = item.get('id')
+
+        artist_string = ""
+
+        for i, artist in enumerate(item.get('artists')):
+            if i > 0:
+                artist_string += ", "
+            name = artist.get('name')
+            artist_string += name
+
+        votes = len(Votes.objects.filter(room=room, song_id=song_id))
+        song = {
+            'title': item.get('name'),
+            'artist': artist_string,
+            'duration': duration,
+            'time': progress,
+            'image_url': album_cover,
+            'is_playing': is_playing,
+            'votes': votes,
+            'votes_required': room.votes_to_skip,
+            'id': song_id
+        }
+
+        self.update_room_song(room, song_id)
+
+        return Response(song, status=status.HTTP_200_OK)
+
+    def update_room_song(self, room, song_id):
+        current_song = room.current_song
+
+        # if song has changed then, update it accordingly!
+        if current_song != song_id:
+            room.current_song = song_id
+            room.save(update_fields=['current_song'])
+            # resets the votes.
+            votes = Votes.objects.filter(room=room).delete()
+
+
+class PauseSong(APIView):
+    def put(self, request, format=None):
+        room_code = self.request.session.get('room_code')
+        room = Room.objects.filter(code=room_code)[0]
+
+        if self.request.session.session_key == room.host or room.guest_can_pause:
+            pause_song(room.host)
+            return Response({}, status=status.HTTP_204_NO_CONTENT)
+        return Response({}, status=status.HTTP_403_FORBIDDEN)
+
+
+class PlaySong(APIView):
+    def put(self, request, format=None):
+        room_code = self.request.session.get('room_code')
+        room = Room.objects.filter(code=room_code)[0]
+
+        if self.request.session.session_key == room.host or room.guest_can_pause:
+            play_song(room.host)
+            return Response({}, status=status.HTTP_204_NO_CONTENT)
+        return Response({}, status=status.HTTP_403_FORBIDDEN)
+
+
+class SkipSong(APIView):
+    def post(self, request, format=None):
+        room_code = self.request.session.get('room_code')
+        room = Room.objects.filter(code=room_code)[0]
+        votes = Votes.objects.filter(room=room, song_id=room.current_song)
+        votes_needed = room.votes_to_skip
+        # Allow user to skip the song if host or if the current number of votes is greater than
+        # votes needed.
+        if self.request.session.session_key == room.host or len(votes) + 1 >= votes_needed:
+            # now we can clear the votes, since the current song has been skipped.
+            votes.delete()
+            skip_song(room.host)
+        # otherwise, make the skip count as a vote.
+        else:
+            vote = Votes(user=self.request.session.session_key, room=room, song_id=room.current_song)
+            vote.save()
+        return Response({}, status=status.HTTP_204_NO_CONTENT)

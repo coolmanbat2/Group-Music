@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Grid, Button, Typography } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useParams } from "react-router-dom";
+import MusicPlayer from "./MusicPlayer";
 import CreateRoomPage from "./createRoomPage";
 
 function Room(props) {
@@ -10,7 +11,7 @@ function Room(props) {
   const [guestCanPause, setGuestCanPause] = useState(false);
   const [voteToSkip, setVoteToSkip] = useState(2);
   const [showSettings, setShowSettings] = useState(false);
-  const [spotifyAuthenticated, isSpotifyAuthenicated] = useState(false);
+  const [song, setSong] = useState({});
   const { roomCode } = useParams();
 
   const getRoomDetails = () => {
@@ -37,7 +38,6 @@ function Room(props) {
     fetch("/api/is-authenicated")
       .then((response) => response.json())
       .then((data) => {
-        isSpotifyAuthenicated(data.status);
         if (!data.status) {
           fetch("/api/get-auth-url")
             .then((response) => response.json())
@@ -45,6 +45,20 @@ function Room(props) {
               window.location.replace(data.url); // may or may not work in this case.
             });
         }
+      });
+  }
+
+  function getCurrentSong() {
+    fetch("/api/current-song")
+      .then((response) => {
+        if (!response.ok) {
+          return {};
+        } else {
+          return response.json();
+        }
+      })
+      .then((data) => {
+        setSong(data);
       });
   }
 
@@ -98,8 +112,9 @@ function Room(props) {
   }
 
   // When webpage loads, retrieve the room details.
+  getRoomDetails();
   useEffect(() => {
-    getRoomDetails();
+    getCurrentSong();
   });
   if (showSettings) {
     return showSettingsPage();
@@ -109,19 +124,6 @@ function Room(props) {
       <Grid container spacing={1} align="center">
         <Grid item xs={12}>
           <Typography variant="h2">Code: {roomCode}</Typography>
-        </Grid>
-        <Grid item xs={12}>
-          <Typography variant="h3">Host: {isHost.toString()}</Typography>
-        </Grid>
-        <Grid item xs={12}>
-          <Typography variant="h4">
-            Guest Can Pause: {guestCanPause.toString()}
-          </Typography>
-        </Grid>
-        <Grid item xs={12}>
-          <Typography variant="h5">
-            Vote To Skip: {voteToSkip.toString()}
-          </Typography>
         </Grid>
         {isHost ? RenderSettingsButton() : null}
         <Grid item xs={12}>
@@ -133,6 +135,9 @@ function Room(props) {
             Leave Room
           </Button>
         </Grid>
+      </Grid>
+      <Grid item xs={12}>
+        <MusicPlayer {...song}/>
       </Grid>
     </React.Suspense>
   );
